@@ -7,7 +7,14 @@ from unittest.mock import Mock, patch
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from fetch_sales_data import Config, extract_records, fetch_sales_data, init_db, insert_records, normalize_record
+from fetch_sales_data import (
+    Config,
+    extract_records,
+    fetch_sales_data,
+    init_db,
+    replace_records,
+    normalize_record,
+)
 
 
 class SalesDataTests(unittest.TestCase):
@@ -39,7 +46,8 @@ class SalesDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "sales_data.db"
             conn = init_db(db)
-            inserted = insert_records(conn, [{
+
+            inserted = replace_records(conn, [{
                 "receipt_number": "R1",
                 "sale_date": "2025-05-20",
                 "transaction_time": "10:00:00",
@@ -52,8 +60,13 @@ class SalesDataTests(unittest.TestCase):
                 "order_type": "DINE-IN",
                 "transaction_status": "SALE",
             }])
+
             self.assertEqual(inserted, 1)
-            row = conn.execute("SELECT receipt_number, net_sale FROM sales_data").fetchone()
+
+            row = conn.execute(
+                "SELECT receipt_number, net_sale FROM sales_data"
+            ).fetchone()
+
             self.assertEqual(row, ("R1", 118.0))
             conn.close()
 
@@ -63,9 +76,18 @@ class SalesDataTests(unittest.TestCase):
         first = Mock(status_code=500, text="temporary failure")
         second = Mock(status_code=200)
         second.json.return_value = {"data": []}
+
         mock_get.side_effect = [first, second]
+
         config = Config("key", "secret", "token", "rest")
-        payload = fetch_sales_data(config, "2025-05-03 00:00:00", "2025-05-30 23:59:19", retries=2)
+
+        payload = fetch_sales_data(
+            config,
+            "2025-05-03 00:00:00",
+            "2025-05-30 23:59:19",
+            retries=2,
+        )
+
         self.assertEqual(payload, {"data": []})
         self.assertEqual(mock_get.call_count, 2)
 
